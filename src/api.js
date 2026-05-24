@@ -11,6 +11,9 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// Enable credentials for cross-origin cookie transmission (B-13)
+api.defaults.withCredentials = true
+
 // Attach JWT on every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')

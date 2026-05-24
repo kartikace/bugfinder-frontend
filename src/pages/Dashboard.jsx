@@ -20,10 +20,19 @@ function BugCount({ count }) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+  
+  // Safe localStorage parsing wrapped in try-catch (B-18)
+  let user = {}
+  try {
+    user = JSON.parse(localStorage.getItem('user') || '{}')
+  } catch (e) {
+    console.error('Failed to parse user profile from localStorage:', e)
+  }
+
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState(null)
+  const [error, setError] = useState('') // local delete error UI state (B-16)
 
   const fetchScans = async () => {
     try {
@@ -41,25 +50,39 @@ export default function Dashboard() {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this scan?')) return
     setDeletingId(id)
+    setError('')
     try {
       await api.delete(`/scans/${id}`)
-      setData(prev => ({
-        ...prev,
-        scans: prev.scans.filter(s => s.id !== id),
-        stats: {
-          ...prev.stats,
-          total: prev.stats.total - 1,
-          total_bugs: prev.stats.total_bugs - (prev.scans.find(s => s.id === id)?.bugs_found || 0),
+      setData(prev => {
+        const deletedScan = prev.scans.find(s => s.id === id)
+        const isDone = deletedScan?.status === 'done'
+        
+        return {
+          ...prev,
+          scans: prev.scans.filter(s => s.id !== id),
+          stats: {
+            ...prev.stats,
+            total: prev.stats.total - 1,
+            done: isDone ? prev.stats.done - 1 : prev.stats.done, // Correctly update Done Count (B-17)
+            total_bugs: prev.stats.total_bugs - (deletedScan?.bugs_found || 0),
+          }
         }
-      }))
+      })
     } catch (e) {
+      setError(e.response?.data?.error || 'Failed to delete scan. Please try again.')
       console.error(e)
     } finally {
       setDeletingId(null)
     }
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Wipes HTTP-Only session cookies on server (B-13)
+      await api.post('/auth/logout')
+    } catch (e) {
+      console.error('Backend logout failed:', e)
+    }
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     navigate('/login')
@@ -72,7 +95,7 @@ export default function Dashboard() {
           🔍 Bug<span className="accent">Finder</span> AI
         </div>
         <div className="nav-right">
-          <span className="nav-user">Hello, <strong>{user.username}</strong></span>
+          <span className="nav-user">Hello, <strong>{user.username || 'Agent'}</strong></span>
           <Link to="/new-scan" className="btn btn-primary btn-sm" id="new-scan-btn">
             + New Scan
           </Link>
@@ -117,6 +140,9 @@ export default function Dashboard() {
             <div className="section-header">
               <h3>Recent Scans</h3>
             </div>
+
+            {/* Local deletion error block (B-16) */}
+            {error && <div className="alert alert-error" style={{ marginBottom: 20 }}>⚠️ {error}</div>}
 
             <div className="table-wrap">
               {data?.scans?.length > 0 ? (
@@ -166,7 +192,10 @@ export default function Dashboard() {
                             </Link>
                             {scan.pdf_ready && (
                               <a
-                                href={`/api/scans/${scan.id}/download`}
+                                href={import.meta.env.VITE_API_URL 
+                                  ? `${import.meta.env.VITE_API_URL}/api/scans/${scan.id}/download?token=${localStorage.getItem('token')}`
+                                  : `/api/scans/${scan.id}/download?token=${localStorage.getItem('token')}`
+                                }
                                 className="btn btn-sm"
                                 style={{ background: 'rgba(0,212,170,.12)', color: 'var(--accent)', border: '1px solid rgba(0,212,170,.25)' }}
                                 id={`dl-scan-${scan.id}`}

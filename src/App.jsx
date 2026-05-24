@@ -4,15 +4,17 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import NewScan from './pages/NewScan'
 import ScanDetail from './pages/ScanDetail'
+import NotFound from './pages/NotFound'
 
 function PrivateRoute({ children }) {
-  const token = localStorage.getItem('token')
-  return token ? children : <Navigate to="/login" replace />
+  // Check user profile for client-side routing state to mitigate XSS JWT theft (B-13)
+  const user = localStorage.getItem('user')
+  return user ? children : <Navigate to="/login" replace />
 }
 
 function PublicRoute({ children }) {
-  const token = localStorage.getItem('token')
-  return !token ? children : <Navigate to="/" replace />
+  const user = localStorage.getItem('user')
+  return !user ? children : <Navigate to="/" replace />
 }
 
 export default function App() {
@@ -24,7 +26,7 @@ export default function App() {
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/new-scan" element={<PrivateRoute><NewScan /></PrivateRoute>} />
         <Route path="/scan/:id" element={<PrivateRoute><ScanDetail /></PrivateRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )

@@ -17,12 +17,34 @@ export default function NewScan() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Robust URL and domain structure validation (B-22)
+  const isValidUrl = (str) => {
+    try {
+      const urlToTest = str.startsWith('http://') || str.startsWith('https://') 
+        ? str 
+        : 'https://' + str
+      const parsed = new URL(urlToTest)
+      return parsed.hostname && parsed.hostname.includes('.') && parsed.hostname.length > 3
+    } catch {
+      return false
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    
+    const trimmedUrl = url.trim()
+    
+    // Perform robust client-side URL check
+    if (!isValidUrl(trimmedUrl)) {
+      setError('Please enter a valid target URL (e.g. example.com or https://example.com).')
+      return
+    }
+
     setLoading(true)
     try {
-      const res = await api.post('/scans', { target_url: url })
+      const res = await api.post('/scans', { target_url: trimmedUrl })
       navigate(`/scan/${res.data.id}`)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start scan. Please try again.')

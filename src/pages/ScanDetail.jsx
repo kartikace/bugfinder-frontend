@@ -20,18 +20,21 @@ function formatDate(iso) {
 function VulnSection({ catKey, catName, vulns = [] }) {
   const [open, setOpen] = useState(true)
 
+  // Filter out any internally captured scanner exceptions/errors from showing as vulnerabilities (B-12)
+  const realVulns = vulns.filter(bug => bug.title && bug.title !== 'Scan Error' && bug.severity !== 'INFO' && !bug.error)
+
   return (
     <div className="vuln-section">
       <div className="vuln-section-head" onClick={() => setOpen(!open)}>
         <h4>{catName}</h4>
         <span className="vuln-section-count">
-          {vulns.length} issue{vulns.length !== 1 ? 's' : ''} {open ? '▲' : '▼'}
+          {realVulns.length} issue{realVulns.length !== 1 ? 's' : ''} {open ? '▲' : '▼'}
         </span>
       </div>
       {open && (
         <div>
-          {vulns.length > 0 ? (
-            vulns.filter(b => b.title).map((bug, i) => (
+          {realVulns.length > 0 ? (
+            realVulns.map((bug, i) => (
               <div className="bug-item" key={i}>
                 <div className="bug-top">
                   <span className="bug-title">{bug.title}</span>
@@ -57,6 +60,7 @@ export default function ScanDetail() {
   const [scan, setScan] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [downloading, setDownloading] = useState(false)
 
   const fetchScan = async () => {
     try {
@@ -89,6 +93,34 @@ export default function ScanDetail() {
     }, 3000)
     return () => clearInterval(interval)
   }, [scan?.status])
+
+  // Programmatic, secure PDF download using Axios blob fetch (B-05)
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      const res = await api.get(`/scans/${scan.id}/download`, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Resolve safe local filename
+      const rawName = scan.target_url.replace('https://','').replace('http://','')[:30]
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '')
+      link.setAttribute('download', `BugReport_${safeName || 'Scan'}_${scan.id}.pdf`)
+      
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to download PDF report:', e)
+      alert('Failed to download PDF report file. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -137,13 +169,14 @@ export default function ScanDetail() {
             <div className="url-tag">{scan.target_url}</div>
           </div>
           {scan.pdf_ready && (
-            <a
-              href={`/api/scans/${scan.id}/download`}
+            <button
+              onClick={handleDownload}
               className="btn btn-primary"
               id="download-pdf-btn"
+              disabled={downloading}
             >
-              ⬇ Download PDF Report
-            </a>
+              {downloading ? 'Downloading...' : '⬇ Download PDF Report'}
+            </button>
           )}
         </div>
 
