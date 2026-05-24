@@ -106,7 +106,7 @@ export default function ScanDetail() {
       link.href = url
       
       // Resolve safe local filename
-      const rawName = scan.target_url.replace('https://','').replace('http://','')[:30]
+      const rawName = scan.target_url.replace('https://','').replace('http://','').slice(0, 30)
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '')
       link.setAttribute('download', `BugReport_${safeName || 'Scan'}_${scan.id}.pdf`)
       
