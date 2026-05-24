@@ -33,6 +33,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState(null)
   const [error, setError] = useState('') // local delete error UI state (B-16)
+  const [downloadingId, setDownloadingId] = useState(null) // local download loader (N-01)
+
+  const handleDownload = async (id, target_url) => {
+    setDownloadingId(id)
+    try {
+      const res = await api.get(`/scans/${id}/download`, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      
+      const rawName = target_url.replace('https://','').replace('http://','').slice(0, 30)
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, '')
+      link.setAttribute('download', `BugReport_${safeName || 'Scan'}_${id}.pdf`)
+      
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Failed to download PDF report:', e)
+      alert('Failed to download PDF report file. Please try again.')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   const fetchScans = async () => {
     try {
@@ -191,17 +218,15 @@ export default function Dashboard() {
                               View
                             </Link>
                             {scan.pdf_ready && (
-                              <a
-                                href={import.meta.env.VITE_API_URL 
-                                  ? `${import.meta.env.VITE_API_URL}/api/scans/${scan.id}/download?token=${localStorage.getItem('token')}`
-                                  : `/api/scans/${scan.id}/download?token=${localStorage.getItem('token')}`
-                                }
+                              <button
+                                onClick={() => handleDownload(scan.id, scan.target_url)}
                                 className="btn btn-sm"
                                 style={{ background: 'rgba(0,212,170,.12)', color: 'var(--accent)', border: '1px solid rgba(0,212,170,.25)' }}
                                 id={`dl-scan-${scan.id}`}
+                                disabled={downloadingId === scan.id}
                               >
-                                PDF
-                              </a>
+                                {downloadingId === scan.id ? '...' : 'PDF'}
+                              </button>
                             )}
                             <button
                               className="btn btn-danger btn-sm"

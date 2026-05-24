@@ -11,14 +11,13 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
     setLoading(true)
     try {
       const res = await api.post('/auth/register', form)
-      localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.user))
       navigate('/')
     } catch (err) {
